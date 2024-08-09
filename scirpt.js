@@ -158,48 +158,33 @@ function get_reports(data, from=null, to=null) {
 
 	var today = data[data.length - 1][6];
 	var reports = [];
+
 	var date;
+	if (to !== null) date = to;
+	else date = today;
 
-	// all 12 hour reports available in 'data_qrhr'
-	if (from === null && to === null) {
-		date = today;
-		var i = 0;
-		while (true) {
-			var rpt_day = get_12hr_report(data, date, false);
-			reports.push(rpt_day);
-			
-			var rpt_night = get_12hr_report(data, date, true);
-			if (rpt_night == "insufficient data") return reports.reverse(); // helper returns "insufficient data"
-			else reports.push(rpt_night);
-					
-			
-			i++;
-			// not enough values in the previous day to make another report for (96 is one day)
-			const rpts_per_day = (60 / 15) * 24;
-			if (i * rpts_per_day > data.length) return reports.reverse();
-			
-			// decrement date
-			var d_temp = new Date(data[data.length - (i * rpts_per_day)][7]);
-			d_temp.setDate(d_temp.getDate() - 1);
-			date = reduce_date(d_temp);
-		}
+	var i = 0;
+	while (true) {	
+		var rpt_day = get_12hr_report(data, date, false);
+		reports.push(rpt_day);
 		
-	}
+		var rpt_night = get_12hr_report(data, date, true);
+		// TODO: test with from dates	
+		if (from !== null && (new Date(rpt_day[0][7].toString()) < new Date(from) || rpt_night[0][7].toString() < new Date(from)))
 
-	// all 12 hour reports available in 'data_qrhr' from the 'from' date
-	else if (from !== null && to === null) {
-		date = today;
-
-		// not important rn (lazy)
-
-	}
-
-	// reports between the 'from' and 'to' dates
-	else {
-
-		date = to;
-		// not important rn (lazy)
-	}
+		if (rpt_night == "insufficient data") return reports.reverse(); // helper returns "insufficient data"
+		else reports.push(rpt_night);
+						
+		i++;
+		// not enough values in the previous day to make another report for (96 is one day)
+		const rpts_per_day = (60 / 15) * 24;
+		if (i * rpts_per_day > data.length) return reports.reverse();
+			
+		// decrement date
+		var d_temp = new Date(data[data.length - (i * rpts_per_day)][7]);
+		d_temp.setDate(d_temp.getDate() - 1);
+		date = reduce_date(d_temp);
+	}	
 
 	return null;
 
@@ -223,7 +208,6 @@ var multiple_reports = get_reports(data_qrhr);
 
 var clean_list = [];
 
-console.log(multiple_reports)
 
 
 for (let i = 0; i < multiple_reports.length; i++) {
@@ -239,10 +223,6 @@ for (let i = 0; i < multiple_reports.length; i++) {
 	}
 
 }
-
-console.log(clean_list);
-
-
 
 
 // same as previous list but each element is in .csv format
@@ -261,7 +241,6 @@ for (let i = 0; i < clean_list_csv.length; i++) {
 }
 
 
-//console.log(clean_list_csv)
 
 
 var long_data_str = "START OF DATA\n";
