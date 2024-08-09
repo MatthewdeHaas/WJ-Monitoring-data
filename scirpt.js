@@ -6,7 +6,29 @@
 // be filled out.
 
 // CODE:
-var days_back = 5;
+var most_recent_prompt;
+var days_back_prompt;
+var days_back;
+while (true) {
+	most_recent_prompt = prompt("type '0' for most recent report and '1' for a backlog");
+	if (most_recent_prompt == "0" || most_recent_prompt == "1") break;
+	else alert("Please enter either '0' or '1'");
+}
+while (true) {
+	if (most_recent_prompt == "0") {
+		days_back = 1;
+		break;
+	}
+	days_back_prompt = prompt("Type the number of days back you want to go back to");
+	days_back = parseInt(days_back_prompt);
+
+	if (isNaN(days_back) || days_back < 1) alert("Please enter an integer greater than 0");
+	else break;
+}
+
+
+
+
 var days_back_sec = days_back * 60 * 60 * 24;
 var error_msg = "insufficient data";
 var header_text = `"DATE/TIME", "EAST MW (MASL)", "WEST MW (MASL)", "INJECTOR STATION PRESSURE (PSI)", "VOLUME (L)", "FLOW (L/S)"`;
@@ -98,14 +120,16 @@ function init_data() {
 // is being filled out (defaults to the most recent relative to what is in the data field), 
 // and a boolean value specifiying whether a report is for the day or night shift (defaults to day shift)
 // OUTPUT: a 12 hour csv-formatted string from the previous shift 
-// either 18:00-6:00 or 6:00-18:00 depending on the most recent data/time in the data_qrhr array
+// either 18:00-06:00 or 06:00-18:00 depending on the most recent data/time in the data_qrhr array
 // returns "insufficient data" if there isn't enough data in the data_qrhr array to fill a 12 hour period
-function get_12hr_report(data, date=null, nights=null) {
+function get_12hr_report(data, date=null, nights=null, partial=false) {	
 	var i;
 	var today = data[data.length - 1][6];
+	// iterating backwards so finding '18:00:00' would be the last value of the shift => day shift
 	for (i = data.length - 1; i >= 0; i--) {
-		// iterating backwards so finding '18:00:00' would be the last value of the shift => day shift
+		
 
+		// goes back to the first instance of one of these times and creates the report retroactively
 		if (date === null && nights === null) {
 			if (data[i][5] == "06:00:00" || data[i][5] == "18:00:00") break;
 		}
@@ -124,30 +148,35 @@ function get_12hr_report(data, date=null, nights=null) {
 					if (data[i][5] == "18:00:00") break;
 				}
 			}
-		}		
-
-		
+		}	
 		
 	}
 	
 	// data in the data_qrhr array does not go back 12 hours
 
 	const rpts_per_12hr = (60 / 15) * 12;
-	if (i <= rpts_per_12hr) return error_msg;
+	
+	if (i <= rpts_per_12hr && !partial) return error_msg;
 
 	var data_12hr = [];
-	for (let j = 0; j < rpts_per_12hr + 1; j++) {
-		data_12hr.push(data[i - j]);
-	}
+	// creates a list where 'i' is the start
+	if (partial) {
+		for (j = 0; j < data.length - i; j++) {
+			data_12hr.push(data[i + j]);
+		}
+		return data_12hr;
+	} else {
+		// creates a list where 'i' is the end
+		for (let j = 0; j < rpts_per_12hr + 1; j++) {
+			data_12hr.push(data[i - j]);
+		}
 	
-	// reversed here because the 'i' value is acquired backwards,
-	// which makes the previous iteration assignment of data_12hr easier
+		// reversed here because the 'i' value is acquired backwards,
+		// which makes the previous iteration assignment of data_12hr easier
 		
-	return data_12hr.reverse();
-	
+		return data_12hr.reverse();
+	}
 }
-
-
 
 
 // INPUT: optional date fields, where leaving both empty retrieves as many reports as possible
@@ -169,8 +198,8 @@ function get_reports(data, from=null, to=null) {
 		reports.push(rpt_day);
 		
 		var rpt_night = get_12hr_report(data, date, true);
-		// TODO: test with from dates	
-		if (from !== null && (new Date(rpt_day[0][7].toString()) < new Date(from) || rpt_night[0][7].toString() < new Date(from)))
+		// not working right now (maybe indexing error?)
+		//if (from !== null && (new Date(rpt_day[0][7].toString()) < new Date(from) || rpt_night[0][7].toString() < new Date(from)))
 
 		if (rpt_night == "insufficient data") return reports.reverse(); // helper returns "insufficient data"
 		else reports.push(rpt_night);
@@ -201,55 +230,81 @@ function reduce_date(date) {
 	return (date.getFullYear().toString() + "-" + month.toString() + "-" + day.toString()).toString();
 }
 
-init_data();
 
 
-var multiple_reports = get_reports(data_qrhr);
+function clean_csv_reports(reports) {
 
-var clean_list = [];
-
-
-
-for (let i = 0; i < multiple_reports.length; i++) {
-
-	clean_list.push(multiple_reports[i]);
-	if (multiple_reports[i] != error_msg) {
-		for (let j = 0; j < multiple_reports[i].length; j++) {
+	var clean_list = [];
+	var clean_list_csv = [];
+	for (let i = 0; i < reports.length; i++) {
+	clean_list.push(reports[i]);
+	if (reports[i] != error_msg) {
+		for (let j = 0; j < reports[i].length; j++) {
 			// reformats the list so that the date-time is before the data
 			let date = new Date((clean_list[i][j][6] + "T" + clean_list[i][j][5]).toString());
 			clean_list[i][j].splice(5, 3);
 			clean_list[i][j].splice(0, 0, date.toString().substring(0, date.toString().indexOf("GMT") - 1));
+			}
 		}
+	
 	}
 
-}
+	for (let i = 0; i < clean_list.length; i++) {
+		if (clean_list[i] != error_msg) clean_list_csv.push(clean_list[i]);
+	}	
 
-
-// same as previous list but each element is in .csv format
-var clean_list_csv = [];
-
-
-for (let i = 0; i < clean_list.length; i++) {
-	if (clean_list[i] != error_msg) clean_list_csv.push(clean_list[i]);
-}
-
-for (let i = 0; i < clean_list_csv.length; i++) {
-	for (let j = 0; j < clean_list_csv[i].length; j++) {
-		clean_list_csv[i][j] = clean_list_csv[i][j].join(",");
+	for (let i = 0; i < clean_list_csv.length; i++) {
+		for (let j = 0; j < clean_list_csv[i].length; j++) {
+			clean_list_csv[i][j] = clean_list_csv[i][j].join(",");
+		}
+		clean_list_csv[i] = clean_list_csv[i].join("\n");
 	}
-	clean_list_csv[i] = clean_list_csv[i].join("\n");
+
+	return clean_list_csv;	
+
+}
+
+
+init_data();
+
+//console.log(get_12hr_report(data_qrhr, null, null, true));
+
+if (most_recent_prompt == "0") {
+	console.log(header_text + "\n" + clean_csv_reports([get_12hr_report(data_qrhr, null, null, true)])[0]);
+}
+else {
+	
+	var multiple_reports = get_reports(data_qrhr);
+	var clean_list_csv = clean_csv_reports(multiple_reports);
+
+	var long_data_str = "START OF DATA\n";
+
+	for (let i = 0; i < clean_list_csv.length; i++) {
+		var shift = "day";
+		if (clean_list_csv[0].substring(clean_list_csv[i].indexOf(",") + 1, clean_list_csv[i].indexOf(":")) == "18") shift = "night";
+			long_data_str += header_text + "\n" + clean_list_csv[i] + "\nnew\n";
+	}
+
+	long_data_str += "END OF DATA\n";
+	console.log(long_data_str);
 }
 
 
 
 
-var long_data_str = "START OF DATA\n";
 
-for (let i = 0; i < clean_list_csv.length; i++) {
-	var shift = "day";
-	if (clean_list_csv[0].substring(clean_list_csv[i].indexOf(",") + 1, clean_list_csv[i].indexOf(":")) == "18") shift = "night";
-	long_data_str += header_text + "\n" + clean_list_csv[i] + "\nnew\n";
-}
 
-long_data_str += "END OF DATA\n";
-console.log(long_data_str);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
