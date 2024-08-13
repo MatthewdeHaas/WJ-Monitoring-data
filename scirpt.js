@@ -1,12 +1,25 @@
-// AUTHOR: Matthew deHaas
+/*
+AUTHOR: Matthew deHaas
 
-// DESCRIPTION: WJ's network allows public requests to its server. Currently this code packages the data
-// from WJ into 15 minute intervals back to an arbitrary number of days. The final objective
-// is it create 12 hour partitions of data reflective of the coloured physical sheets meant to
-// be filled out.
 
-// CODE:
-// THIS IS A TEST!!!
+DESCRIPTION: Takes data from WJ's server and puts it into .csv format to be converted in a seperate file
+
+
+INSTRUCTIONS FOR GETTING TODAY'S REPORT IN EXCEL FORMAT:
+
+Copy entire this entire document to clipboard (cltr + a, ctrl + c)
+Open the webiste "https://monitoring.wjgl.com/P3130%20ECWE/index.html" in chrome
+On the website, press ctrl + shft + i. A small window should occupy the right side of the browser where you can now type
+Paste from clipboard in this typeable area (ctrl + v) and press enter
+Type '0' and press enter (1 gets a backlog of data that requires an external program to create the excel files)
+The output will be formatted in .csv style. Copy it by clicking on 'Copy' below the output text (ignore the red error)
+Open Notepad by pressing the windows key and searching for it
+Paste the output into the Notepad file and save by pressing ctrl + shft + s
+Navigate to the folder this doucment is saved in. Name it whatever you want but make sure the file name ends with '.csv'
+You can now see today's file wherever you saved it
+*/
+
+
 var most_recent_prompt;
 var days_back_prompt;
 var days_back;
@@ -23,7 +36,7 @@ while (true) {
 	days_back_prompt = prompt("Type the number of days back you want to go back to");
 	days_back = parseInt(days_back_prompt);
 
-	if (isNaN(days_back) || days_back < 1) alert("Please enter an integer greater than 0");
+	if (isNaN(days_back) || days_back < 1 || days_back > 100) alert("Please enter an integer between 1 and 100");
 	else break;
 }
 
@@ -37,7 +50,7 @@ var header_text = `"DATE/TIME", "EAST MW (MASL)", "WEST MW (MASL)", "INJECTOR ST
 
 // third arg of cp5_qurey_back is the number of seconds to backfill to e.g. 864000 / (60 * 60 * 24) = 10 days
 // run to load fresh data from the network
-var cp5_query_back = new CsiWebQuery("CP5:Table1", "backfill", days_back_sec.toString(), "", "collected", 300000, -1, 
+var cp5_query_back = new CsiWebQuery("CP5:Table1", "backfill", days_back_sec.toString(), "", "collected", 3000000, -1, 
 [new CsiVariable("vacuum_PRESSURE", false), 
 new CsiVariable("flow_Flow'", false),
 new CsiVariable("flow_Volume'", false),
@@ -45,34 +58,33 @@ new CsiVariable("ejector_pressure_Pressure'", false),
 new CsiVariable("piezo_2_MASL'", false),
 new CsiVariable("piezo_1_MASL'", false)], "", 0);
 var data_f_back = new CsiDataManager([cp5_query_back], false);
-data_f_back.start();
 
-// acquire json response in from the network tab and set it equal to a variable such as the following (DO AFTER SUCCESSFUL NETWORK REQUEST)
-var json_backfill = {};
+// Requests data from server
+data_f_back.start();
 
 
 async function getData(site) {
 
 	const url = `https://monitoring.wjgl.com/P3130%20ECWE/?command=DataQuery&uri=${site}%3ATable1&format=json&mode=backfill&p1=${days_back_sec.toString()}&p2=&headsig=0&nextpoll=300000&order=collected&_=${Date.now().toString()}`
 
-
 	try {
 		const response = await fetch(url);
 		if (!response.ok) throw new Error(`Response Status ${response.status}`);
 
 		const json = await response.json();
-		json_backfill = json;
+		return json;
 
 	} catch (error) {
 		console.error(error.message);
+		return error;
 	}
 
 }
 
 // ensures data is fetched before program proceeds
-await getData("CP5");
+var json_backfill = await getData("CP5");
 
-// utility arrays for parsing the data
+// utility arrays for parsing data
 var data_list = json_backfill['data'];
 sens = [];
 data_qrhr = [];
@@ -122,6 +134,7 @@ function init_data() {
 // and a boolean value specifiying whether a report is for the day or night shift (defaults to day shift)
 // OUTPUT: a 12 hour csv-formatted string from the previous shift 
 // either 18:00-06:00 or 06:00-18:00 depending on the most recent data/time in the data_qrhr array
+// if partial is true, returns a partial report from either 06:00:00 or 18:00:00 to right now (time zwhen function was called)
 // returns "insufficient data" if there isn't enough data in the data_qrhr array to fill a 12 hour period
 function get_12hr_report(data, date=null, nights=null, partial=false) {	
 	var i;
@@ -268,15 +281,12 @@ function clean_csv_reports(reports) {
 
 init_data();
 
-//console.log(get_12hr_report(data_qrhr, null, null, true));
-
 if (most_recent_prompt == "0") {
 	console.log(header_text + "\n" + clean_csv_reports([get_12hr_report(data_qrhr, null, null, true)])[0]);
 }
 else {
-	
-	var multiple_reports = get_reports(data_qrhr);
-	var clean_list_csv = clean_csv_reports(multiple_reports);
+
+	var clean_list_csv = clean_csv_reports(get_reports(data_qrhr));
 
 	var long_data_str = "START OF DATA\n";
 
@@ -289,23 +299,3 @@ else {
 	long_data_str += "END OF DATA\n";
 	console.log(long_data_str);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
