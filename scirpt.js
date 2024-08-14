@@ -292,8 +292,10 @@ else {
 
 	for (let i = 0; i < clean_list_csv.length; i++) {
 		var shift = "day";
-		if (clean_list_csv[0].substring(clean_list_csv[i].indexOf(",") + 1, clean_list_csv[i].indexOf(":")) == "18") shift = "night";
-			long_data_str += header_text + "\n" + clean_list_csv[i] + "\nnew\n";
+		if (clean_list_csv[0].substring(clean_list_csv[i].indexOf(",") + 1, clean_list_csv[i].indexOf(":")) == "18") {
+			shift = "night";
+		}
+		long_data_str += header_text + "\n" + clean_list_csv[i] + "\nnew\n";
 	}
 
 	long_data_str += "END OF DATA\n";
